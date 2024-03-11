@@ -1,0 +1,92 @@
+// necessary packages for project&security
+import dotenv from 'dotenv';
+import Web3 from 'web3';
+import axios from 'axios';
+import Joi from 'joi';
+import express, { Request, Response, NextFunction } from 'express';
+
+// Load environment variables
+dotenv.config();
+
+//INFURA_ENDPOINT it is the Infura endpoint URL
+//USDT_CONTRACT_ADDRESS it is the USDT contract address
+// Initialize the express application
+const app: express.Application = express();
+
+// *Note:* The web3 provider creation logic has been separated into a separate function to improve reusability..
+function createWeb3Provider(infuraEndpoint: string): Web3 {
+  return new Web3(infuraEndpoint);
+}
+
+// *Note:* The USDT contract creation logic has been separated into a separate function to improve reusability.
+function createUSDTContract(web3: Web3, usdtContractAddress: string): Contract<string> {
+  return new web3.eth.Contract(usdtAbi as USDTContractABI, usdtContractAddress);
+}
+
+// Middleware to validate&filter address
+function validateAddress(req: Request, res: Response, next: NextFunction) {
+  const schema = Joi.object({
+    address: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) return res.status(400).send(error.details[0].message);
+  next();
+}
+
+//the Contract<T> interface to represent any contract with a specified return type.
+interface Contract<T> {
+  methods: {
+    [methodName: string]: (...args: any[]) => Promise<T>;
+  };
+}
+
+//the Contract<string> in getUSDTBalance to ensure the USDT balance is returned as a string.
+async function getUSDTBalance(
+  contract: Contract<string>,
+  address: string
+): Promise<string> {
+  const balance = await contract.methods.balanceOf(address).call();
+  return balance;
+}
+
+// * Use Contract<number> in getLastBlockNumber to ensure that the block number is returned as an int value..
+async function getLastBlockNumber(web3: Web3): Promise<number> {
+  const blockNumber: number = await (web3.eth as Contract<number>).getBlockNumber();
+  return blockNumber;
+}
+
+// Express route to handle requests
+app.post('/api/getBalance', validateAddress, async (req: Request, res: Response) => {
+  const balance = await getUSDTBalance(usdtContract, req.body.address as string);
+  res.send(balance);
+});
+
+app.post('/api/getLastBlockNumber', async (req: Request, res: Response) => {
+  const lastBlockNumber = await getLastBlockNumber(web3);
+  res.send(lastBlockNumber);
+});
+
+// Start the server
+const port = 3000;
+app.listen(port, () => {
+  console.log(Server listening on port ${port});
+});
+
+export {
+  getLastBlockNumber,
+  getUSDTBalance,
+  createWeb3Provider,
+  createUSDTContract,
+};
+
+export interface Contract<T> {
+  methods: {
+    [methodName: string]: (...args: any[]) => Promise<T>;
+  };
+}
+
+// * An interface has been defined to represent the ABI structure of USDT nodes.
+interface USDTContractABI {
+  balanceOf(address: string): string;
+}
